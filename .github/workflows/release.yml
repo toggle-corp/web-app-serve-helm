@@ -1,0 +1,60 @@
+name: Generate release
+
+on:
+  push:
+    tags:
+      - "*.*.*"
+
+
+permissions:
+  contents: write
+  packages: write
+
+
+jobs:
+  helm-publish:
+    name: CI
+    uses: ./.github/workflows/helm-publish.yml
+
+  generate-release:
+    name: Generate release
+    runs-on: ubuntu-22.04
+    needs:
+      - helm-publish
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set the release version
+        id: release
+        shell: bash
+        run: |
+          RELEASE_VERSION=${GITHUB_REF:10}
+
+          IS_PRERELEASE=false
+          if [[ "$RELEASE_VERSION" == *dev* ]]; then
+              IS_PRERELEASE=true
+          fi
+
+          echo "release_version=${RELEASE_VERSION}" >> $GITHUB_OUTPUT
+          echo "is_prerelease=${IS_PRERELEASE}" >> $GITHUB_OUTPUT
+          echo "::notice::Release version: ${RELEASE_VERSION}"
+          echo "::notice::Is prerelease: ${IS_PRERELEASE}"
+
+      - name: Generate a changelog
+        uses: orhun/git-cliff-action@main
+        id: git-cliff
+        with:
+          config: cliff.toml
+          args: -vv --latest --no-exec --github-repo ${{ github.repository }} --strip all
+
+      - name: Create Github Release
+        uses: softprops/action-gh-release@v2
+        if: github.ref_type == 'tag'
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          name: "${{ steps.release.outputs.release_version }}"
+          prerelease: ${{ steps.release.outputs.is_prerelease }}
+          body: ${{ steps.git-cliff.outputs.content }}
