@@ -1,0 +1,99 @@
+name: Helm publish
+
+on:
+  workflow_call:
+    outputs:
+      helm_oci_repo:
+        description: "Helm repo"
+        value: ${{ jobs.helm-publish.outputs.helm_oci_repo }}
+      helm_chart:
+        description: "Helm Chart"
+        value: ${{ jobs.helm-publish.outputs.helm_chart }}
+      helm_target_revision:
+        description: "Helm target revision"
+        value: ${{ jobs.helm-publish.outputs.helm_target_revision }}
+  pull_request:
+
+permissions:
+  packages: write
+
+jobs:
+  helm-publish:
+    name: Publish Helm
+    runs-on: ubuntu-latest
+
+    outputs:
+      helm_oci_repo: ${{ steps.prep.outputs.helm_oci_repo }}
+      helm_chart: ${{ steps.prep.outputs.helm_chart }}
+      helm_target_revision: ${{ steps.prep.outputs.helm_target_revision }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare
+        id: prep
+        env:
+          OCI_REPO: oci://ghcr.io/${{ github.repository_owner }}
+        shell: bash
+        run: |
+          OCI_REPO=$(echo $OCI_REPO | tr '[:upper:]' '[:lower:]')
+
+          # Helm
+          HELM_TARGET_REVISION=$(helm show chart ./web-app-serve/ | grep '^version:' | awk '{print $2}')
+          HELM_CHART=$(helm show chart ./web-app-serve/ | grep '^name:' | awk '{print $2}')
+
+          echo "helm_oci_repo=$OCI_REPO" >> $GITHUB_OUTPUT
+          echo "helm_chart=$HELM_CHART" >> $GITHUB_OUTPUT
+          echo "helm_target_revision=$HELM_TARGET_REVISION" >> $GITHUB_OUTPUT
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        if: github.event_name != 'pull_request'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🐳 Helm dependency
+        run: |
+          yq --indent 0 '.dependencies | map(select(.repository | test("^oci:") | not)) | map(["helm", "repo", "add", .name, .repository] | join(" ")) | .[]' ./web-app-serve/Chart.lock | sh --
+          helm dependency build ./web-app-serve/
+
+      - name: Helm lint
+        run: helm lint ./web-app-serve --values ./web-app-serve/linter_values.yaml
+
+      - name: Helm template
+        run: |
+          helm template ./web-app-serve --values ./web-app-serve/linter_values.yaml
+
+          # Test using all test values
+          for values_file in ./web-app-serve/tests/values-*.yaml; do
+            helm template ./web-app-serve --values "$values_file"
+          done
+
+      - name: Package Helm Chart
+        run: helm package ./web-app-serve/ -d ./web-app-serve/.helm-charts
+
+      - name: Push Helm Chart
+        id: push
+        if: github.event_name != 'pull_request'
+        env:
+          OCI_REPO: ${{ steps.prep.outputs.helm_oci_repo }}
+          HELM_CHART: "${{ steps.prep.outputs.helm_chart }}"
+          HELM_TARGET_REVISION: "${{ steps.prep.outputs.helm_target_revision }}"
+        run: |
+          PACKAGE_FILE=$(ls ./web-app-serve/.helm-charts/*.tgz | head -n 1)
+          echo "# Helm Chart" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```yaml' >> $GITHUB_STEP_SUMMARY
+          helm push "$PACKAGE_FILE" $OCI_REPO 2>> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "> [!Important]" >> $GITHUB_STEP_SUMMARY
+          echo "> Helm Repo: **$OCI_REPO**" >> $GITHUB_STEP_SUMMARY
+          echo "> Helm Chart: **$HELM_CHART**" >> $GITHUB_STEP_SUMMARY
+          echo "> Helm Target Revision: **$HELM_TARGET_REVISION**" >> $GITHUB_STEP_SUMMARY
+
+          # Add annotations as well (This is shown in reverse order)
+          echo "::notice::Helm Target Revision: $HELM_TARGET_REVISION"
+          echo "::notice::Helm Chart: $HELM_CHART"
+          echo "::notice::Helm Repo: $OCI_REPO"
