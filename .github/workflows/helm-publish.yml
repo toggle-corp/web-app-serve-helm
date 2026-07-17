@@ -29,6 +29,13 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v4.2.0
 
       - name: Prepare
         id: prep
@@ -55,12 +62,19 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 🐳 Helm dependency
+        if: hashFiles('./web-app-serve/Chart.lock') != ''
         run: |
           yq --indent 0 '.dependencies | map(select(.repository | test("^oci:") | not)) | map(["helm", "repo", "add", .name, .repository] | join(" ")) | .[]' ./web-app-serve/Chart.lock | sh --
           helm dependency build ./web-app-serve/
 
       - name: Helm lint
         run: helm lint ./web-app-serve --values ./web-app-serve/linter_values.yaml
+
+      - name: Helm unit test
+        run: |
+          # helm v4 verifies plugin sources by default; this source has none.
+          helm plugin install https://github.com/helm-unittest/helm-unittest --verify=false || true
+          helm unittest -f 'unittests/*_test.yaml' ./web-app-serve
 
       - name: Helm template
         run: |
@@ -70,6 +84,9 @@ jobs:
           for values_file in ./web-app-serve/tests/values-*.yaml; do
             helm template ./web-app-serve --values "$values_file"
           done
+
+      - name: Helm snapshot check
+        run: ./web-app-serve/update-snapshots.sh --check-diff-only
 
       - name: Package Helm Chart
         run: helm package ./web-app-serve/ -d ./web-app-serve/.helm-charts

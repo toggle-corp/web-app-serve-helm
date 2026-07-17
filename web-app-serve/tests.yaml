@@ -1,0 +1,14 @@
+# Helm template snapshot tests (fugit: fugit/scripts/helm-update-snapshots.sh).
+# Each key maps to the base values files it renders with. The overlay file
+# `tests/<key>` (same filename as the key) is auto-appended on top — it is NOT
+# listed here. Snapshots are written to `snapshots/<key-without-.yaml>.yaml`.
+#
+# Refresh:  ./web-app-serve/update-snapshots.sh
+# CI check: ./web-app-serve/update-snapshots.sh --check-diff-only
+tests:
+  default.yaml:
+    - tests/values-01.yaml
+  tls.yaml:
+    - tests/values-01.yaml
+  replicas-and-secrets.yaml:
+    - tests/values-01.yaml

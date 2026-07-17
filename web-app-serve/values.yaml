@@ -1,18 +1,27 @@
 environment: prod
 
+## @param replicaCount Number of desired pods. When unset, the replicas field
+## is omitted so an external controller (e.g. HPA) can manage it.
+##
+replicaCount:
+
 fullnameOverride:
 
 ## React image (static servied by nginx)
 ## @param image.name Container image name
 ## @param image.tag Container image tag
 ## @param image.pullPolicy Container pull policy `Always|IfNotPresent|Never`
-## @param image.pullSecrets Container image pull secrets
+## @param image.pullSecrets Container image pull secrets.
+## Accepts a list of secret names or `{name: <secret>}` maps.
+## e.g:
+## pullSecrets:
+##   - ghcr-creds
 ##
 image:
   name:
   tag:
   pullPolicy: IfNotPresent
-  pullSecrets:
+  pullSecrets: []
 
 ## React container
 ## @param container.name Container name
@@ -77,10 +86,22 @@ ingress:
     ##
     secretName:
 
-## @param env with environment variables to pass to the container
+## @param env with environment variables to pass to the container.
+## WARNING: these are rendered into a plaintext ConfigMap. Do NOT put
+## sensitive values here — use `envFromSecrets` instead.
 ## e.g:
 ## env:
 ##   APP_TITLE: "My React APP"
 ##   APP_ENVIRONMENT: "ALPHA"
 ##
 env:
+
+## @param envFromSecrets Existing Secret names whose keys are injected as
+## environment variables (via envFrom.secretRef). Use this for sensitive
+## config instead of `env`.
+## Accepts a list of secret names or `{name: <secret>}` maps.
+## e.g:
+## envFromSecrets:
+##   - my-app-secrets
+##
+envFromSecrets: []

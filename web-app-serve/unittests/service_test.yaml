@@ -1,0 +1,28 @@
+suite: service
+templates:
+  - templates/service.yaml
+set:
+  image.name: ghcr.io/toggle-corp/org/web-app
+  image.tag: v1.2.3
+tests:
+  - it: renders a ClusterIP Service targeting the container port
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: spec.type
+          value: ClusterIP
+      - equal:
+          path: spec.ports[0].port
+          value: 80
+      - equal:
+          path: spec.ports[0].targetPort
+          value: 80
+
+  - it: targets a custom container port
+    set:
+      container.port: 8080
+    asserts:
+      - equal:
+          path: spec.ports[0].targetPort
+          value: 8080

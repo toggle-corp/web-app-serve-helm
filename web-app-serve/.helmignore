@@ -1,1 +1,9 @@
 values-local.yaml
+# Test / snapshot scaffolding
+# unittests/: helm-unittest suites; tests/, tests.yaml, snapshots/: fugit snapshots
+unittests/
+tests/
+tests.yaml
+snapshots/
+update-snapshots.sh
+linter_values.yaml

@@ -6,7 +6,9 @@ metadata:
     environment: {{ .Values.environment }}
     release: {{ .Release.Name }}
 spec:
-  replicas: 1
+  {{- if not (kindIs "invalid" .Values.replicaCount) }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
   selector:
     matchLabels:
       app: {{ template "web-app-serve.fullname" . }}
@@ -23,7 +25,13 @@ spec:
     spec:
       {{- with .Values.image.pullSecrets }}
       imagePullSecrets:
-        {{- toYaml . | nindent 8 }}
+        {{- range . }}
+        {{- if kindIs "string" . }}
+        - name: {{ . }}
+        {{- else }}
+        - name: {{ .name }}
+        {{- end }}
+        {{- end }}
       {{- end }}
       containers:
         - name: {{ .Values.container.name }}
@@ -38,3 +46,12 @@ spec:
           envFrom:
             - configMapRef:
                 name: {{ template "web-app-serve.fullname" . }}-configmap
+            {{- range .Values.envFromSecrets }}
+            {{- if kindIs "string" . }}
+            - secretRef:
+                name: {{ . }}
+            {{- else }}
+            - secretRef:
+                {{- toYaml . | nindent 16 }}
+            {{- end }}
+            {{- end }}
