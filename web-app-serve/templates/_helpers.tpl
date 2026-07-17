@@ -48,8 +48,13 @@ Usage: {{ include "web-app-serve.ingress_project_labels" . }}
 {{- $image := .Values.image.name | default "" -}}
 {{- $parts := splitList "/" $image -}}
 
-{{- $registry := (index $parts 0) | default "" -}}
-{{- $org := (index $parts 1) | default "" -}}
+{{- $registry := "" -}}
+{{- $org := "" -}}
+{{- $imageName := "" -}}
+
+{{- if ge (len $parts) 2 -}}
+{{- $registry = (index $parts 0) | default "" -}}
+{{- $org = (index $parts 1) | default "" -}}
 
 {{- $imageNameParts := list -}}
 {{- range $i, $val := $parts }}
@@ -58,7 +63,15 @@ Usage: {{ include "web-app-serve.ingress_project_labels" . }}
   {{- end }}
 {{- end }}
 
-{{- $imageName := join "/" $imageNameParts -}}
+{{- $imageName = join "/" $imageNameParts -}}
+{{- else -}}
+  {{- /* Slash-less image name (e.g. the SET-BY-CICD-IMAGE placeholder shipped
+        before CI seds in the real image). Fall back to the whole value,
+        sanitized/truncated to a valid Kubernetes label value, instead of
+        panicking on an out-of-range index. */ -}}
+{{- $sanitized := regexReplaceAll "[^A-Za-z0-9_.-]" $image "-" | trunc 63 | trimAll "-_." -}}
+{{- $imageName = $sanitized -}}
+{{- end -}}
 
 {{- $tagRaw := .Values.image.tag -}}
 {{- $tagRawList := splitList "" $tagRaw -}}

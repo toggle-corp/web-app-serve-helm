@@ -81,3 +81,35 @@ tests:
     asserts:
       - notExists:
           path: metadata.labels["web-app-serve/docker-registry"]
+
+  # Regression: a slash-less image name (e.g. the SET-BY-CICD-IMAGE placeholder
+  # shipped before CI seds in the real image) previously panicked on `index
+  # $parts 1` (reflect: slice index out of range), breaking lint/template.
+  - it: renders docker metadata labels for a slash-less image name
+    set:
+      image.name: SET-BY-CICD-IMAGE
+    asserts:
+      - equal:
+          path: metadata.labels["web-app-serve/docker-registry"]
+          value: ""
+      - equal:
+          path: metadata.labels["web-app-serve/docker-org"]
+          value: ""
+      - equal:
+          path: metadata.labels["web-app-serve/docker-name"]
+          value: SET-BY-CICD-IMAGE
+
+  # A single-slash name keeps its existing (registry/org) split behavior.
+  - it: renders docker metadata labels for a single-slash image name
+    set:
+      image.name: org/web-app
+    asserts:
+      - equal:
+          path: metadata.labels["web-app-serve/docker-registry"]
+          value: org
+      - equal:
+          path: metadata.labels["web-app-serve/docker-org"]
+          value: web-app
+      - equal:
+          path: metadata.labels["web-app-serve/docker-name"]
+          value: ""
