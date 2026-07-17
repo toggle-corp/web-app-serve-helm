@@ -26,6 +26,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          submodules: recursive
 
       - name: Set the release version
         id: release
@@ -43,12 +44,22 @@ jobs:
           echo "::notice::Release version: ${RELEASE_VERSION}"
           echo "::notice::Is prerelease: ${IS_PRERELEASE}"
 
+      # cliff.toml's commit preprocessor runs `typos`; without it git-cliff
+      # silently drops commits (empty release body). See fugit/AGENTS.md.
+      - name: Install typos
+        uses: taiki-e/install-action@v2
+        with:
+          tool: typos
+
       - name: Generate a changelog
-        uses: orhun/git-cliff-action@main
+        uses: orhun/git-cliff-action@v4
         id: git-cliff
         with:
-          config: cliff.toml
-          args: -vv --latest --no-exec --github-repo ${{ github.repository }} --strip all
+          config: fugit/configs/cliff.toml
+          args: -vv --latest --strip all --github-repo ${{ github.repository }}
+        env:
+          FUGIT_REMOTE_BASE_URL: https://github.com/${{ github.repository }}
+          FUGIT_REMOTE_PLATFORM_URL: https://github.com
 
       - name: Create Github Release
         uses: softprops/action-gh-release@v2
