@@ -20,6 +20,21 @@ tests:
           path: spec.template.spec.containers[0].imagePullPolicy
           value: IfNotPresent
 
+  - it: omits replicas when replicaCount is unset
+    template: templates/deployment.yaml
+    asserts:
+      - notExists:
+          path: spec.replicas
+
+  - it: sets replicas when replicaCount is defined
+    template: templates/deployment.yaml
+    set:
+      replicaCount: 3
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
+
   - it: exposes the configured container port
     template: templates/deployment.yaml
     set:
@@ -58,7 +73,7 @@ tests:
       - failedTemplate:
           errorMessage: .Values.image.tag
 
-  - it: renders imagePullSecrets when provided
+  - it: renders imagePullSecrets from a list of maps
     template: templates/deployment.yaml
     set:
       image.pullSecrets:
@@ -67,3 +82,43 @@ tests:
       - equal:
           path: spec.template.spec.imagePullSecrets[0].name
           value: ghcr-creds
+
+  - it: renders imagePullSecrets from a list of strings
+    template: templates/deployment.yaml
+    set:
+      image.pullSecrets:
+        - ghcr-creds
+    asserts:
+      - equal:
+          path: spec.template.spec.imagePullSecrets[0].name
+          value: ghcr-creds
+
+  - it: omits imagePullSecrets when none are set
+    template: templates/deployment.yaml
+    asserts:
+      - notExists:
+          path: spec.template.spec.imagePullSecrets
+
+  - it: injects secrets via envFrom.secretRef
+    template: templates/deployment.yaml
+    set:
+      envFromSecrets:
+        - my-app-secrets
+        - name: extra-secrets
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].envFrom[0].configMapRef.name
+          value: RELEASE-NAME-web-app-serve-helm-configmap
+      - equal:
+          path: spec.template.spec.containers[0].envFrom[1].secretRef.name
+          value: my-app-secrets
+      - equal:
+          path: spec.template.spec.containers[0].envFrom[2].secretRef.name
+          value: extra-secrets
+
+  - it: only mounts the configmap when no envFromSecrets are set
+    template: templates/deployment.yaml
+    asserts:
+      - lengthEqual:
+          path: spec.template.spec.containers[0].envFrom
+          count: 1
