@@ -55,12 +55,18 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 🐳 Helm dependency
+        if: hashFiles('./web-app-serve/Chart.lock') != ''
         run: |
           yq --indent 0 '.dependencies | map(select(.repository | test("^oci:") | not)) | map(["helm", "repo", "add", .name, .repository] | join(" ")) | .[]' ./web-app-serve/Chart.lock | sh --
           helm dependency build ./web-app-serve/
 
       - name: Helm lint
         run: helm lint ./web-app-serve --values ./web-app-serve/linter_values.yaml
+
+      - name: Helm unit test
+        run: |
+          helm plugin install https://github.com/helm-unittest/helm-unittest || true
+          helm unittest ./web-app-serve
 
       - name: Helm template
         run: |

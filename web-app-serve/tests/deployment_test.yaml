@@ -1,0 +1,69 @@
+suite: deployment
+# configmap.yaml is included for the checksum annotation, so it must be loaded too;
+# each test scopes its assertions to the Deployment document.
+templates:
+  - templates/deployment.yaml
+  - templates/configmap.yaml
+set:
+  image.name: ghcr.io/toggle-corp/org/web-app
+  image.tag: v1.2.3
+tests:
+  - it: renders a Deployment with the composed image reference
+    template: templates/deployment.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/toggle-corp/org/web-app:v1.2.3
+      - equal:
+          path: spec.template.spec.containers[0].imagePullPolicy
+          value: IfNotPresent
+
+  - it: exposes the configured container port
+    template: templates/deployment.yaml
+    set:
+      container.port: 8080
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 8080
+
+  - it: wires envFrom to the configmap
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].envFrom[0].configMapRef.name
+          value: RELEASE-NAME-web-app-serve-helm-configmap
+
+  - it: sets a configmap checksum annotation to trigger rollouts
+    template: templates/deployment.yaml
+    asserts:
+      - exists:
+          path: spec.template.metadata.annotations["checksum/configmap"]
+
+  - it: fails when image.name is missing
+    template: templates/deployment.yaml
+    set:
+      image.name: null
+    asserts:
+      - failedTemplate:
+          errorMessage: .Values.image.name
+
+  - it: fails when image.tag is missing
+    template: templates/deployment.yaml
+    set:
+      image.tag: null
+    asserts:
+      - failedTemplate:
+          errorMessage: .Values.image.tag
+
+  - it: renders imagePullSecrets when provided
+    template: templates/deployment.yaml
+    set:
+      image.pullSecrets:
+        - name: ghcr-creds
+    asserts:
+      - equal:
+          path: spec.template.spec.imagePullSecrets[0].name
+          value: ghcr-creds

@@ -1,0 +1,83 @@
+suite: ingress
+templates:
+  - templates/ingress.yaml
+set:
+  image.name: ghcr.io/toggle-corp/org/web-app
+  image.tag: v1.2.3
+  ingress.hostname: react.web-app.com
+  ingress.ingressClassName: nginx
+tests:
+  - it: renders an Ingress with the configured hostname and class
+    asserts:
+      - isKind:
+          of: Ingress
+      - equal:
+          path: spec.ingressClassName
+          value: nginx
+      - equal:
+          path: spec.rules[0].host
+          value: react.web-app.com
+      - equal:
+          path: spec.rules[0].http.paths[0].backend.service.port.number
+          value: 80
+
+  - it: is not rendered when ingress is disabled
+    set:
+      ingress.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # Regression: TLS host previously read the non-existent .ingress.host and rendered empty
+  - it: populates the TLS host from ingress.hostname
+    set:
+      ingress.tls.enabled: true
+      ingress.tls.secretName: web-app-tls
+    asserts:
+      - equal:
+          path: spec.tls[0].hosts[0]
+          value: react.web-app.com
+      - notEqual:
+          path: spec.tls[0].hosts[0]
+          value: ""
+      - equal:
+          path: spec.tls[0].secretName
+          value: web-app-tls
+
+  - it: omits the TLS block when tls is disabled
+    asserts:
+      - notExists:
+          path: spec.tls
+
+  - it: fails when ingressClassName is not provided
+    set:
+      ingress.ingressClassName: null
+    asserts:
+      - failedTemplate:
+          errorMessage: ingress.ingressClassName
+
+  - it: fails when hostname is not provided
+    set:
+      ingress.hostname: null
+    asserts:
+      - failedTemplate:
+          errorMessage: ingress.hostname
+
+  - it: renders docker metadata labels when enabled
+    asserts:
+      - equal:
+          path: metadata.labels["web-app-serve/docker-registry"]
+          value: ghcr.io
+      - equal:
+          path: metadata.labels["web-app-serve/docker-org"]
+          value: toggle-corp
+      - equal:
+          path: metadata.labels["web-app-serve/docker-name"]
+          value: org/web-app
+
+  - it: omits docker metadata labels when disabled
+    set:
+      ingress.dockerMetadataEnabled: false
+    asserts:
+      - notExists:
+          path: metadata.labels["web-app-serve/docker-registry"]
