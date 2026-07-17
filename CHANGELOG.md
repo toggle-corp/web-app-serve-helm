@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.1](https://github.com/toggle-corp/web-app-serve-helm/compare/0.2.0..0.2.1) - 2026-07-17
+### Changes:
+
+#### 🐛 Bug Fixes
+
+- Guard ingress_project_labels against slash-less image names - ([7537588](https://github.com/toggle-corp/web-app-serve-helm/commit/7537588fa404de7dd6630fba551f00990447f5d5))
+
+#### ⚙️ Miscellaneous Tasks
+
+- Remove legacy detailed.toml - ([1c8ade9](https://github.com/toggle-corp/web-app-serve-helm/commit/1c8ade97c7f0e875d962e16f76dafa45fd86ebc7))
+
+
 ## [0.2.0](https://github.com/toggle-corp/web-app-serve-helm/compare/0.1.1..0.2.0) - 2026-07-17
 ### Changes:
 
