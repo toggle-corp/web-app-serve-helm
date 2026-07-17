@@ -1,5 +1,7 @@
 values-local.yaml
-# Test / snapshot scaffolding (helm-unittest + fugit snapshots)
+# Test / snapshot scaffolding
+# unittests/: helm-unittest suites; tests/, tests.yaml, snapshots/: fugit snapshots
+unittests/
 tests/
 tests.yaml
 snapshots/

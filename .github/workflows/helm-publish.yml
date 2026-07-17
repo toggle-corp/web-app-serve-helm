@@ -68,7 +68,7 @@ jobs:
       - name: Helm unit test
         run: |
           helm plugin install https://github.com/helm-unittest/helm-unittest || true
-          helm unittest ./web-app-serve
+          helm unittest -f 'unittests/*_test.yaml' ./web-app-serve
 
       - name: Helm template
         run: |
