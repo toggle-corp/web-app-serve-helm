@@ -3,7 +3,9 @@ name: Generate release
 on:
   push:
     tags:
-      - "*.*.*"
+      # Bare SemVer (VERSION_TAG_PREFIX_MODE=forbid). Stable + pre-release.
+      - "[0-9]+.[0-9]+.[0-9]+"
+      - "[0-9]+.[0-9]+.[0-9]+-*"
 
 
 permissions:
@@ -12,6 +14,7 @@ permissions:
 
 
 jobs:
+  # Reuse CI, which also publishes the chart on non-PR events (tag push).
   helm-publish:
     name: CI
     uses: ./.github/workflows/helm-publish.yml
@@ -25,47 +28,58 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
           submodules: recursive
+          fetch-depth: 0
 
-      - name: Set the release version
-        id: release
-        shell: bash
+      - name: Detect pre-release
+        id: meta
         run: |
-          RELEASE_VERSION=${GITHUB_REF:10}
-
-          IS_PRERELEASE=false
-          if [[ "$RELEASE_VERSION" == *dev* ]]; then
-              IS_PRERELEASE=true
+          if [[ "${{ github.ref_name }}" == *-* ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
           fi
 
-          echo "release_version=${RELEASE_VERSION}" >> $GITHUB_OUTPUT
-          echo "is_prerelease=${IS_PRERELEASE}" >> $GITHUB_OUTPUT
-          echo "::notice::Release version: ${RELEASE_VERSION}"
-          echo "::notice::Is prerelease: ${IS_PRERELEASE}"
-
-      # cliff.toml's commit preprocessor runs `typos`; without it git-cliff
-      # silently drops commits (empty release body). See fugit/AGENTS.md.
+      # cliff.toml's commit preprocessor shells out to `typos`; without it
+      # git-cliff silently drops commits from the body.
       - name: Install typos
         uses: taiki-e/install-action@v2
         with:
           tool: typos
 
-      - name: Generate a changelog
+      - name: Generate changelog
         uses: orhun/git-cliff-action@v4
-        id: git-cliff
         with:
           config: fugit/configs/cliff.toml
           args: -vv --latest --strip all --github-repo ${{ github.repository }}
         env:
+          OUTPUT: CHANGELOG.latest.md
           FUGIT_REMOTE_BASE_URL: https://github.com/${{ github.repository }}
           FUGIT_REMOTE_PLATFORM_URL: https://github.com
+
+      - name: Build release body
+        run: |
+          {
+            echo "## Artifacts"
+            echo
+            echo "**Helm chart**"
+            echo '```'
+            echo "helm upgrade --install web-app-serve oci://ghcr.io/${{ github.repository }} \\"
+            echo "  --version ${{ github.ref_name }} \\"
+            echo "  --set image.name=<your-image> --set image.tag=<your-image-tag> \\"
+            echo "  --set ingress.hostname=<your-host> --set ingress.ingressClassName=nginx"
+            echo '```'
+            echo
+            echo "---"
+            echo
+            cat CHANGELOG.latest.md
+          } > RELEASE_BODY.md
 
       - name: Create Github Release
         uses: softprops/action-gh-release@v2
         if: github.ref_type == 'tag'
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          name: "${{ steps.release.outputs.release_version }}"
-          prerelease: ${{ steps.release.outputs.is_prerelease }}
-          body: ${{ steps.git-cliff.outputs.content }}
+          name: ${{ github.ref_name }}
+          prerelease: ${{ steps.meta.outputs.prerelease }}
+          body_path: RELEASE_BODY.md
