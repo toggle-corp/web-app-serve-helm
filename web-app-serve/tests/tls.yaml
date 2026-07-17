@@ -1,0 +1,5 @@
+# Exercises the ingress TLS block (regression guard for the TLS host fix).
+ingress:
+  tls:
+    enabled: true
+    secretName: web-app-tls

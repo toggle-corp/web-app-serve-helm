@@ -29,6 +29,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Prepare
         id: prep
@@ -76,6 +78,9 @@ jobs:
           for values_file in ./web-app-serve/tests/values-*.yaml; do
             helm template ./web-app-serve --values "$values_file"
           done
+
+      - name: Helm snapshot check
+        run: ./web-app-serve/update-snapshots.sh --check-diff-only
 
       - name: Package Helm Chart
         run: helm package ./web-app-serve/ -d ./web-app-serve/.helm-charts
