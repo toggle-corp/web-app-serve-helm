@@ -72,7 +72,8 @@ jobs:
 
       - name: Helm unit test
         run: |
-          helm plugin install https://github.com/helm-unittest/helm-unittest || true
+          # helm v4 verifies plugin sources by default; this source has none.
+          helm plugin install https://github.com/helm-unittest/helm-unittest --verify=false || true
           helm unittest -f 'unittests/*_test.yaml' ./web-app-serve
 
       - name: Helm template
